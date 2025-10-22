@@ -1,0 +1,22 @@
+[project]
+name = "ansi-colors"
+version = "0.1.0"
+description = "CLI for referencing ANSI color codes"
+readme = "README.md"
+authors = [{ name = "Analetta Ehler", email = "annie.ehler.4@gmail.com" }]
+maintainers = [{ name = "Analetta Ehler", email = "annie.ehler.4@gmail.com" }]
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = ["rich-click>=1.9.3"]
+
+[project.urls]
+Homepage = "https://github.com/annie444/ansi-colors"
+Repository = "https://github.com/annie444/ansi-colors.git"
+Issues = "https://github.com/annie444/ansi-colors/issues"
+
+[project.scripts]
+ansi-colors = "ansi_colors.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
