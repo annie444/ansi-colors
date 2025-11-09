@@ -7,11 +7,17 @@ name = "ansi-colors"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "rich" },
     { name = "rich-click" },
+    { name = "typing-extensions" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "rich-click", specifier = ">=1.9.3" }]
+requires-dist = [
+    { name = "rich", specifier = ">=14.2.0" },
+    { name = "rich-click", specifier = ">=1.9.3" },
+    { name = "typing-extensions", specifier = ">=4.15.0" },
+]
 
 [[package]]
 name = "click"

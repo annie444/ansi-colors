@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 from typing import List, Dict, TypeVar, Generic, Tuple
 from abc import ABC, abstractmethod
 import os
+from ansi_colors.support import ColorSupport, supports_color
+from ansi_colors.utils import warn, debug
 
 ESCAPE_CODE = "\x1b["
 END_CODE = "m"
@@ -9,9 +13,15 @@ JOIN_CODE = ";"
 
 class ShowCode:
     code: str
+    support: ColorSupport
+    is_supported: bool
+    term: ColorSupport
 
-    def __init__(self, code: str):
+    def __init__(self, code: str, support: ColorSupport):
         self.code = code
+        self.support = support
+        self.term = supports_color()
+        self.is_supported = self.term.value >= self.support.value
 
     def __str__(self) -> str:
         return f"\\033[{self.code}{END_CODE}"
@@ -20,10 +30,14 @@ class ShowCode:
         return f"\\033{self.code}{END_CODE}"
 
     def to_ansi(self) -> str:
+        if not self.is_supported:
+            warn("Terminal does not support required color level.")
+            debug(f"Requested: {self.support}, Detected: {self.term}")
+            return ""
         return f"{ESCAPE_CODE}{self.code}{END_CODE}"
 
 
-RESET_CODE = ShowCode("0")
+RESET_CODE = ShowCode("0", ColorSupport.BASIC)
 
 
 class Section:
@@ -44,10 +58,18 @@ N = TypeVar("N")
 class CodesBase(ABC, Generic[N]):
     title: str
     table_attrs: Dict[str, N]
+    is_supported: bool
+    term: ColorSupport = supports_color()
 
-    def __init__(self, title: str, table_attrs: Dict[str, N]):
+    def __init__(
+        self,
+        title: str,
+        table_attrs: Dict[str, N],
+        support: ColorSupport,
+    ):
         self.title = title
         self.table_attrs = table_attrs
+        self.is_supported = supports_color().value >= support.value
 
     @abstractmethod
     def to_ansi(self, name: N):
@@ -75,16 +97,19 @@ class CodesBase(ABC, Generic[N]):
 
 
 class TextStyles(CodesBase[str]):
-    bold: ShowCode = ShowCode("1")
-    dim: ShowCode = ShowCode("2")
-    italic: ShowCode = ShowCode("3")
-    underline: ShowCode = ShowCode("4")
-    blink: ShowCode = ShowCode("5")
-    reverse: ShowCode = ShowCode("7")
-    hidden: ShowCode = ShowCode("8")
-    strikethrough: ShowCode = ShowCode("9")
+    support: ColorSupport = ColorSupport.BASIC
+    reset: ShowCode = RESET_CODE
+    bold: ShowCode = ShowCode("1", ColorSupport.BASIC)
+    dim: ShowCode = ShowCode("2", ColorSupport.BASIC)
+    italic: ShowCode = ShowCode("3", ColorSupport.BASIC)
+    underline: ShowCode = ShowCode("4", ColorSupport.BASIC)
+    blink: ShowCode = ShowCode("5", ColorSupport.BASIC)
+    reverse: ShowCode = ShowCode("7", ColorSupport.BASIC)
+    hidden: ShowCode = ShowCode("8", ColorSupport.BASIC)
+    strikethrough: ShowCode = ShowCode("9", ColorSupport.BASIC)
 
     def __init__(self):
+        self.is_supported = supports_color().value >= self.support.value
         table_attrs = {
             "Bold": "bold",
             "Dim": "dim",
@@ -95,9 +120,13 @@ class TextStyles(CodesBase[str]):
             "Hidden": "hidden",
             "Strikethrough": "strikethrough",
         }
-        super().__init__("Text Styles", table_attrs)
+        super().__init__("Text Styles", table_attrs, self.support)
 
     def to_ansi(self, style_name: str) -> str:
+        if not self.is_supported:
+            warn("Terminal does not support required color level.")
+            debug(f"Requested: {self.support}, Detected: {self.term}")
+            return ""
         return getattr(self, style_name).to_ansi()
 
     def get(self, style_name: str) -> str:
@@ -113,17 +142,19 @@ class AnsiColors(CodesBase[str]):
     magenta: ShowCode
     cyan: ShowCode
     white: ShowCode
+    support: ColorSupport = ColorSupport.BASIC
 
     def __init__(self, title: str, start: int):
         self.title = title
-        self.black = ShowCode(str(start))
-        self.red = ShowCode(str(start + 1))
-        self.green = ShowCode(str(start + 2))
-        self.yellow = ShowCode(str(start + 3))
-        self.blue = ShowCode(str(start + 4))
-        self.magenta = ShowCode(str(start + 5))
-        self.cyan = ShowCode(str(start + 6))
-        self.white = ShowCode(str(start + 7))
+        self.black = ShowCode(str(start), self.support)
+        self.red = ShowCode(str(start + 1), self.support)
+        self.green = ShowCode(str(start + 2), self.support)
+        self.yellow = ShowCode(str(start + 3), self.support)
+        self.blue = ShowCode(str(start + 4), self.support)
+        self.magenta = ShowCode(str(start + 5), self.support)
+        self.cyan = ShowCode(str(start + 6), self.support)
+        self.white = ShowCode(str(start + 7), self.support)
+        self.is_supported = supports_color().value >= self.support.value
         table_attrs = {
             "Black": "black",
             "Red": "red",
@@ -134,9 +165,13 @@ class AnsiColors(CodesBase[str]):
             "Cyan": "cyan",
             "White": "white",
         }
-        super().__init__(title, table_attrs)
+        super().__init__(title, table_attrs, self.support)
 
     def to_ansi(self, color_name: str) -> str:
+        if not self.is_supported:
+            warn("Terminal does not support required color level.")
+            debug(f"Requested: {self.support}, Detected: {self.term}")
+            return ""
         return getattr(self, color_name).to_ansi()
 
     def get(self, color_name: str) -> str:
@@ -149,6 +184,7 @@ class FullAnsiColor(CodesBase[int]):
     start: int
     end: int
     max_len: int = 0
+    support: ColorSupport = ColorSupport.EXTENDED
 
     def __init__(self, title: str, code1: str, code2: str, start: int, end: int):
         self.code1 = code1
@@ -156,8 +192,9 @@ class FullAnsiColor(CodesBase[int]):
         self.start = start
         self.end = end
         self.max_len = len(str(self.end))
+        self.is_supported = supports_color().value >= self.support.value
         table_attrs = {str(i): i for i in range(self.start, self.end + 1)}
-        super().__init__(title, table_attrs)
+        super().__init__(title, table_attrs, self.support)
 
     def __str__(self) -> str:
         return f"\\033[{self.code1};{self.code2};<index>{END_CODE}"
@@ -169,9 +206,13 @@ class FullAnsiColor(CodesBase[int]):
         if index < self.start or index > self.end:
             raise ValueError("Index out of range for the specified ANSI color codes.")
         codes = [self.code1, self.code2, str(index)]
-        return ShowCode(JOIN_CODE.join(codes))
+        return ShowCode(JOIN_CODE.join(codes), self.support)
 
     def to_ansi(self, index: int) -> str:
+        if not self.is_supported:
+            warn("Terminal does not support required color level.")
+            debug(f"Requested: {self.support}, Detected: {self.term}")
+            return ""
         return self.code(index).to_ansi()
 
     def get(self, index: int) -> str:
@@ -202,6 +243,7 @@ class FullAnsiColor(CodesBase[int]):
 class RGBColor(CodesBase[Tuple[int, int, int]]):
     code1: str
     code2: str
+    support: ColorSupport = ColorSupport.TRUECOLOR
 
     def __init__(self, title: str, code1: str, code2: str):
         self.code1 = code1
@@ -209,7 +251,8 @@ class RGBColor(CodesBase[Tuple[int, int, int]]):
         table_attrs = {
             "RGB": (127, 255, 0),
         }
-        super().__init__(title, table_attrs)
+        self.is_supported = supports_color().value >= self.support.value
+        super().__init__(title, table_attrs, self.support)
 
     def __str__(self) -> str:
         return f"\\033[{self.code1};{self.code2};<r>;<g>;<b>{END_CODE}"
@@ -221,9 +264,13 @@ class RGBColor(CodesBase[Tuple[int, int, int]]):
         if not all(0 <= val <= 255 for val in color):
             raise ValueError("RGB values must be in the range 0-255.")
         codes = [self.code1, self.code2, str(color[0]), str(color[1]), str(color[2])]
-        return ShowCode(JOIN_CODE.join(codes))
+        return ShowCode(JOIN_CODE.join(codes), self.support)
 
     def to_ansi(self, color: Tuple[int, int, int]) -> str:
+        if not self.is_supported:
+            warn("Terminal does not support required color level.")
+            debug(f"Requested: {self.support}, Detected: {self.term}")
+            return ""
         return self.code(color).to_ansi()
 
     def get(self, color: Tuple[int, int, int]) -> str:
@@ -266,6 +313,37 @@ class ColorTypes:
         self.full = full
         self.rgb = rgb
 
+    def __getattr__(self, name: str):
+        if name in ["base", "bright", "full", "rgb"]:
+            return super().__getattribute__(name)
+        raise AttributeError(f"'ColorTypes' object has no attribute '{name}'")
+
+    def __getitem__(self, key: str) -> AnsiColors | FullAnsiColor | RGBColor:
+        if key in ["base", "bright", "full", "rgb"]:
+            return getattr(self, key)
+        raise KeyError(f"'ColorTypes' has no key '{key}'")
+
+    def show(self, style: str) -> str:
+        if style in ["base", "bright", "full", "rgb"]:
+            section = self[style].section()
+            return section.str()
+        elif style == "all":
+            return self.show_all()
+        else:
+            raise ValueError(
+                f"Invalid style '{style}'. Choose from 'base', 'bright', 'full', 'rgb', or 'all'."
+            )
+
+    def show_all(self) -> str:
+        sections: List[Section] = [
+            self.base.section(),
+            self.bright.section(),
+            self.full.section(),
+            self.rgb.section(),
+        ]
+        output = [s.str() for s in sections]
+        return "\n\n".join(output)
+
 
 class AnsiCodes:
     foreground: ColorTypes = ColorTypes(
@@ -292,26 +370,21 @@ class AnsiCodes:
     )
 
     def show_all(self) -> str:
-        sections: List[Section] = [
+        sections: List[str] = [
             Section(
                 name="Escape Codes",
                 table=self.escape_codes,
-            ),
+            ).str(),
             Section(
                 name="Join Code",
                 table=f"The character '{JOIN_CODE}' is used to separate multiple codes in a single ANSI sequence.",
-            ),
+            ).str(),
             Section(
                 name="Reset Code",
                 table=str(RESET_CODE),
-            ),
-            self.text_styles.section(),
-            self.foreground.base.section(),
-            self.background.base.section(),
-            self.foreground.bright.section(),
-            self.background.bright.section(),
-            self.foreground.full.section(),
-            self.background.full.section(),
+            ).str(),
+            self.text_styles.section().str(),
+            self.foreground.show_all(),
+            self.background.show_all(),
         ]
-        output = [s.str() for s in sections]
-        return "\n\n".join(output)
+        return "\n\n".join(sections)

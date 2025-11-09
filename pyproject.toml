@@ -7,7 +7,11 @@ authors = [{ name = "Analetta Ehler", email = "annie.ehler.4@gmail.com" }]
 maintainers = [{ name = "Analetta Ehler", email = "annie.ehler.4@gmail.com" }]
 license = "MIT"
 requires-python = ">=3.10"
-dependencies = ["rich-click>=1.9.3"]
+dependencies = [
+    "rich>=14.2.0",
+    "rich-click>=1.9.3",
+    "typing-extensions>=4.15.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/annie444/ansi-colors"
