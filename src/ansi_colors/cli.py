@@ -45,7 +45,7 @@ def main(
         click.echo(codes.codes.show_all())
 
 
-@main.group("styles")
+@main.command("styles")
 @click.argument(
     "style",
     type=click.Choice(
